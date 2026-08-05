@@ -1,101 +1,111 @@
 #include <WiFi.h>
 #include <Web3.h>
 #include <Contract.h>
+#include <Util.h>
 #include "DHT.h"
 
-// CONFIGURAÇÃO SENSOR
-#define DHTPIN 21
-#define DHTTYPE DHT11
-
+// 1. CONFIGURAÇÃO DO SENSOR DHT
+#define DHTPIN 21       // Pino digital conectado ao sensor DHT
+#define DHTTYPE DHT11  // Tipo do sensor DHT
 DHT dht(DHTPIN, DHTTYPE);
 
-// DADOS DA REDE WI-FI (Com aspas!)
-const char* ssid = "SargonDrase.2.4Ghz";
-const char* password = "Yeezus050494";
+// 2. DADOS DA REDE WI-FI
+const char* ssid = "Valter Cel 2.4G";
+const char* password = "91346879vl";
 
-// Defina a URL como uma String ou ajuste o construtor para o padrão que a Web3E espera
-String rpc_url = "http://192.168.1.15:7545";
-const char* private_key = "a7249ee56dc740da48be024a42fe94c384c1b321f1acd7081d646da1149210f0";
-const char* contract_address = "0x7216cc37dcdcfc63ae925d8e7e48dd9e41df3838";
+// 3. DADOS DA BLOCKCHAIN
+string rpc_url = "http://192.168.1.126:7545"; // novo IPv4 atualizado com wifi;
+const char* private_key = "0x0f380022f81f21f85815cc175c05dbeb0e8a11d264b64d34d2524b14fb570621"; 
+const char* contract_address = "0x6D201D58155Cfb654d4D995e28da74217Af920F2"; 
+string minha_carteira = "0xC766B9536918CE7bAAB94BbA1333E48565B7e922"; 
 
-Web3 web3(1337);  // 1337 é o Chain ID padrão do Ganache local
-
-void conectarWiFi() {
-  Serial.print("\n[REDE] A conectar ao Wi-Fi: ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.print("\n[REDE] Conectado! IP da Bancada: ");
-  Serial.println(WiFi.localIP());
-}
+Web3 web3(1337); // Chain ID do Ganache
 
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  delay(1000);
-
-  Serial.println("\n=== INICIANDO MODULO ESP32 + DHT11 + WEB3 ===");
-  conectarWiFi();
+  
+  Serial.println("Conectando ao Wi-Fi...");
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  Serial.println("");
+  Serial.println("Wi-Fi conectado com sucesso!");
+  Serial.print("Endereço IP do ESP32: ");
+  Serial.println(WiFi.localIP());
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
+    
+    // =========================================================
+    // INÍCIO DO MODO DE TESTE (IGNORANDO O SENSOR FÍSICO)
+    // =========================================================
+    
+    // Lendo o sensor (COMENTADO)
+    // float temp = dht.readTemperature();
+    // float umid = dht.readHumidity();
 
-    // Leitura física
-    float temp = dht.readTemperature();
-    float umid = dht.readHumidity();
+    // Inserindo dados manuais (FALSOS) para testar a Blockchain
+    float temp = 28.5;
+    float umid = 65.0;
     bool status_hardware = true;
 
-    // Validação
+    // Validação de erro do sensor (COMENTADA PARA NÃO DAR INTERFERÊNCIA)
+    /*
     if (isnan(temp) || isnan(umid)) {
-      Serial.println("Erro: Falha na leitura do DHT11. Verifique o jumper no pino 21!");
+      Serial.println("Falha ao ler o sensor DHT!");
       status_hardware = false;
-      delay(2000);
-      return;
+      temp = 0;
+      umid = 0;
     }
+    */
+    // =========================================================
+    // FIM DO MODO DE TESTE
+    // =========================================================
 
-    Serial.printf("Lido -> Temp: %.2f C | Umid: %.2f %%\n", temp, umid);
+    Serial.print("Temperatura: ");
+    Serial.print(temp);
+    Serial.print(" *C | Umidade: ");
+    Serial.print(umid);
+    Serial.println(" %");
 
-    // Preparando a conexão com o Contrato
     Contract contrato(&web3, contract_address);
     contrato.SetPrivateKey(private_key);
 
-    // Convertendo os dados lidos para o formato numérico que a EVM (Blockchain) entende
     uint256_t tempUint = (uint32_t)temp;
     uint256_t umidUint = (uint32_t)umid;
-    uint256_t statusUint = status_hardware ? 1 : 0;  // Booleanos entram como 0 ou 1 na EVM
+    uint256_t statusUint = status_hardware ? 1 : 0;
+
+    Serial.println("Buscando nonce atual...");
+    uint32_t nonce = web3.EthGetTransactionCount(&minha_carteira);
+
+    unsigned long long gasPrice = 20000000000ULL; 
+    uint32_t gasLimit = 3000000; 
+    string toAddress = contract_address; 
+    uint256_t valorWei = 0; 
 
     Serial.println("Enviando transacao para o Ganache...");
-
-    // Configura a chamada da função Vyper com as variáveis convertidas
-    string param = contrato.SetupContractData("registrar_leitura(uint256,uint256,bool)", &tempUint, &umidUint, &statusUint);
-
-    // Dispara a transação de fato
-    // 1. Configura os parâmetros obrigatórios da Web3E para a transação
-    uint32_t nonce = 0;                            // Número da transação (pode precisar de ajuste dinâmico futuramente)
-    unsigned long long gasPrice = 20000000000ULL;  // Preço do gás (20 Gwei)
-    uint32_t gasLimit = 3000000;                   // Limite de gás para a execução do contrato
-    string toAddress = contract_address;           // Endereço de destino
-    uint256_t valorWei = 0;                        // Valor em ether a ser transferido (0, pois só queremos salvar dados)
-
-    // 2. Dispara a transação passando os 6 argumentos exatos que a biblioteca exige
+    
+    string param = contrato.SetupContractData("registrar(uint256,uint256,bool)", &tempUint, &umidUint, &statusUint); 
+    
     string tx_hash = contrato.SendTransaction(nonce, gasPrice, gasLimit, &toAddress, &valorWei, &param);
 
     if (tx_hash == "") {
-      Serial.println("Erro: Falha ao enviar transacao (Verifique se o Ganache esta rodando).");
+      Serial.println("Erro: Falha ao enviar transacao.");
     } else {
-      Serial.print("Sucesso! Transacao confirmada. Hash: ");
+      Serial.print("Sucesso! Hash da Transacao: ");
       Serial.println(tx_hash.c_str());
     }
 
   } else {
-    Serial.println("Wi-Fi desconectado. Tentando reconectar...");
+    Serial.println("Wi-Fi desconectado... Tentando reconectar.");
     WiFi.reconnect();
   }
-
-  // Espera 10 segundos antes de enviar a próxima leitura
+  
   delay(10000);
 }
