@@ -10,11 +10,10 @@
 DHT dht(DHTPIN, DHTTYPE);
 
 // 2. DADOS DA REDE WI-FI
-const char* ssid = "CSI-Lab";
-const char* password = "In@teLCS&I";
+const char* ssid = "iPhone";
+const char* password = "eu123456";
 
 // 3. DADOS DA BLOCKCHAIN
-// A URL agora é pública e usa HTTPS
 const char* rpc_url = "https://json-rpc.evm.testnet.iotaledger.net";
 const char* private_key = "0x0f380022f81f21f85815cc175c05dbeb0e8a11d264b64d34d2524b14fb570621";
 const char* contract_address = "0xd9145CCE52D386f254917e481eB44e9943F39138";
@@ -57,7 +56,7 @@ void loop() {
       Serial.println("Erro: Falha ao ler o sensor DHT11! Verifique a fiação no pino 21.");
       status_hardware = false;
       delay(2000);
-      return;  // Aborta esse ciclo do loop — não envia dado inválido pra blockchain
+      return;  // Aborta esse ciclo do loop
     }
     // =========================================================
 
