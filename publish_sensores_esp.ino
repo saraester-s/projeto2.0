@@ -15,7 +15,7 @@ const char* password = "Yeezus050494";
 
 // 3. DADOS DA BLOCKCHAIN — IOTA EVM TESTNET
 const char* private_key = "0x0f380022f81f21f85815cc175c05dbeb0e8a11d264b64d34d2524b14fb570621";
-const char* contract_address = "0xa0ff6cbadb6fd4f3dda790e3e529fa8e3c32c5db"; // ATUALIZADO: contrato real deployado na testnet
+const char* contract_address = "0x4849b3b059D063aF45d50591086daCB1D821E0C7"; // ATUALIZADO: contrato real deployado na testnet
 string minha_carteira = "0x316e45d3A5DF8AfE6091a746522db3b670874Ef6";
 
 Web3 web3(1076);  // IOTA EVM Testnet
@@ -23,7 +23,7 @@ Web3 web3(1076);  // IOTA EVM Testnet
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  delay(1000);  
+  delay(1000);
 
   Serial.println("Conectando ao Wi-Fi...");
   WiFi.begin(ssid, password);
@@ -37,7 +37,7 @@ void setup() {
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("\nFalha ao conectar. Reiniciando o hardware de forma segura...");
-    ESP.restart(); 
+    ESP.restart();
   }
 
   Serial.println("");
@@ -60,7 +60,7 @@ void loop() {
       Serial.println("Erro: Falha ao ler o sensor DHT11! Verifique a fiação no pino 4.");
       status_hardware = false;
       delay(2000);
-      return; 
+      return;
     }
     // =========================================================
 
@@ -94,8 +94,9 @@ void loop() {
 
     string tx_hash = contrato.SendTransaction(nonce, gasPrice, gasLimit, &toAddress, &valorWei, &param);
 
-    if (tx_hash == "") {
-      Serial.println("Erro: Falha ao enviar transacao.");
+    if (tx_hash == "" || tx_hash.find("\"error\"") != string::npos) {
+      Serial.print("Erro: Falha ao enviar transacao. Resposta: ");
+      Serial.println(tx_hash.c_str());
     } else {
       Serial.print("Sucesso! Hash da Transacao: ");
       Serial.println(tx_hash.c_str());
