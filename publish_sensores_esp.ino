@@ -2,37 +2,42 @@
 #include <Web3.h>
 #include <Contract.h>
 #include <Util.h>
-#include "DHT.h"
+#include "DHT.h" // Biblioteca oficial Adafruit
 
 // 1. CONFIGURAÇÃO DO SENSOR DHT
-#define DHTPIN 21       // Pino DATA do DHT11 conectado ao GPIO 21
+#define DHTPIN 4       // Pino DATA do DHT11 conectado ao GPIO 4
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
-// 2. DADOS DA REDE WI-FI
-const char* ssid = "iPhone";
-const char* password = "eu123456";
+// 2. DADOS DA REDE WI-FI 
+const char* ssid = "SargonDrase.2.4Ghz";
+const char* password = "Yeezus050494";
 
-// 3. DADOS DA BLOCKCHAIN
-const char* rpc_url = "https://json-rpc.evm.testnet.iotaledger.net";
+// 3. DADOS DA BLOCKCHAIN — IOTA EVM TESTNET
 const char* private_key = "0x0f380022f81f21f85815cc175c05dbeb0e8a11d264b64d34d2524b14fb570621";
-const char* contract_address = "0xd9145CCE52D386f254917e481eB44e9943F39138";
+const char* contract_address = "0xa0ff6cbadb6fd4f3dda790e3e529fa8e3c32c5db"; // ATUALIZADO: contrato real deployado na testnet
 string minha_carteira = "0x316e45d3A5DF8AfE6091a746522db3b670874Ef6";
 
-// O Chain ID muda de 1337 (Ganache) para 1075 (IOTA EVM Testnet)
-Web3 web3(1075);
+Web3 web3(1076);  // IOTA EVM Testnet
 
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  delay(1000);  // Tempo de estabilização do sensor após ligar
+  delay(1000);  
 
   Serial.println("Conectando ao Wi-Fi...");
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  int tentativas = 0;
+  while (WiFi.status() != WL_CONNECTED && tentativas < 20) {
     delay(500);
     Serial.print(".");
+    tentativas++;
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nFalha ao conectar. Reiniciando o hardware de forma segura...");
+    ESP.restart(); 
   }
 
   Serial.println("");
@@ -51,12 +56,11 @@ void loop() {
     float umid = dht.readHumidity();
     bool status_hardware = true;
 
-    // Validação: DHT11 pode falhar na leitura (fiação, timing, ruído)
     if (isnan(temp) || isnan(umid)) {
-      Serial.println("Erro: Falha ao ler o sensor DHT11! Verifique a fiação no pino 21.");
+      Serial.println("Erro: Falha ao ler o sensor DHT11! Verifique a fiação no pino 4.");
       status_hardware = false;
       delay(2000);
-      return;  // Aborta esse ciclo do loop
+      return; 
     }
     // =========================================================
 
@@ -76,7 +80,10 @@ void loop() {
     Serial.println("Buscando nonce atual...");
     uint32_t nonce = web3.EthGetTransactionCount(&minha_carteira);
 
-    unsigned long long gasPrice = 20000000000ULL;
+    long long int gasPrice = web3.EthGasPrice();
+    Serial.print("Gas Price atual da rede: ");
+    Serial.println((long)gasPrice);
+
     uint32_t gasLimit = 3000000;
     string toAddress = contract_address;
     uint256_t valorWei = 0;
