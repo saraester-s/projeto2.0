@@ -93,7 +93,7 @@ Passo a passo:
 
 Em uma frase: **atestamos que “esta conta EVM, neste bloco, registrou este hash de firmware e este booleano”.** Temperatura e umidade viajam no JSON para validar o hardware e medir desempenho; **não entram no `registrar` atual**.
 
-Contrato usado nesse caminho (endereço no relay): função `registrar(bytes32 firmwareHash, bool status)`. É o molde ESDRA, não o `registrar_leitura` do `sensor.vy`.
+Contrato usado nesse caminho: `0xDAc95e767da4376456b132F4b78e18C0b8d0C669`, função `registrar(bytes32 firmwareHash, bool status)`. É o molde ESDRA, não o `registrar_leitura` do `sensor.vy`.
 
 ### 2.2 Caminho desenhado para o contrato novo (leitura IoT on-chain)
 
@@ -101,7 +101,7 @@ Contrato usado nesse caminho (endereço no relay): função `registrar(bytes32 f
 
 Aí a “atestação” muda de objeto: em vez do hash do firmware, o fato declarado é **a amostra do sensor**, carimbada com `block.timestamp`. Continua sendo uma declaração assinada, não uma prova física do DHT11.
 
-`src/firmware.py` classifica quando isso deve ir para a cadeia:
+`src/firmware.py` é o **modelo** dessa classificação para os testes — não é uma cópia linha a linha do `.ino` atual. O sketch de laboratório só decide “NaN → não posta”; faixa 0–100 e `hardwareValido` só existem de fato em `sensor.vy` / `contract_logic.py`. A tabela abaixo é o desenho que os testes cobrem:
 
 | Situação | Camada | Subcategoria | O que acontece |
 |---|---|---|---|
@@ -170,7 +170,7 @@ Regras de `registrar_leitura(_temp, _umid, _status)`:
 
 `src/contract_logic.py` é um espelho em Python das mesmas regras, para pytest sem compilador Vyper.
 
-Contratos velhos (`mycontract.vy`, `sensor.vy` na raiz) estão no `.gitignore`. O script `src/publish_sensores_esp/python_script_vincula_a_RPC.py` ainda faz deploy do bytecode ESDRA antigo.
+Contratos velhos (`mycontract.vy`, `mycontact.vy` — typo de uma cópia de `sensor.vy` —, `sensor.vy` na raiz) estão no `.gitignore`. O script `src/publish_sensores_esp/python_script_vincula_a_RPC.py` ainda faz deploy do bytecode ESDRA antigo (e ainda carrega a mesma chave do relay em texto claro).
 
 ---
 
@@ -186,7 +186,7 @@ O que ele faz hoje:
 - POST JSON para o IPv4 do PC na LAN;
 - intervalo de 10 s após leitura válida.
 
-Espelho testável: `src/firmware.py` (`classify_reading`, `build_transaction_payload`, chain ID 1076, função `registrar_leitura(uint256,uint256,bool)`).
+O modelo testável em `src/firmware.py` (`classify_reading`, `build_transaction_payload`) descreve o envio futuro para `registrar_leitura` na chain ID **1076**. O sketch que está na placa **não** chama Web3E nem essa função.
 
 **Atenção operacional:** SSID, senha e URL do relay são locais. Trocar de rede exige atualizar os três. Não commitar senha nova em texto claro se for possível evitar; o sketch atual ainda traz credenciais de laboratório.
 
@@ -202,27 +202,27 @@ Arquivo: `src/novo_servidor_relay.py`.
 - Lote de desempenho: 30 envios **reais** (DHT válido + tx confirmada).
 - Média acumulada reescrita em `data/performance_media_total.csv`.
 
-A chave EVM usada para assinar está no código do relay. Para qualquer uso fora do laboratório, isso deveria ir para variável de ambiente (o `.env` já está no `.gitignore`).
+A chave EVM e o `WALLET_ADDRESS` (`0x316e45d3…874Ef6`) usados para assinar estão no código do relay, não no `.ino`. Para qualquer uso fora do laboratório, isso deveria ir para variável de ambiente (o `.env` já está no `.gitignore`).
 
 ---
 
 ## 7. Testes
 
-`pytest` (`pytest.ini` aponta `tests/`, `pythonpath = .`). Dependência: `requirements.txt`.
+`pytest` (`pytest.ini` aponta `tests/`, `pythonpath = .`). Dependências em `requirements.txt`: pytest, Flask e web3.
 
 `tests/test_iot_attestation.py` — avaliação do pipeline:
 
 1. Categorização com subcategoria (etapas 3 e 4 não dependem só do rótulo on-chain).
-2. Roteamento de camada (firmware vs contrato, NaN não vira payload).
+2. Roteamento de camada (HTTP + NaN no `.ino`; `registrar` no relay; `registrar_leitura` no `sensor.vy`; payload EVM modelado em `firmware.py`).
 3. Granularidade: duas placas, históricos separados.
 4. Timestamp imutável por registro (análogo a política de TTL: o passado não expira nem se reescreve).
 5. Allowlist / dano colateral: invasor e faixa inválida não poluem o histórico; revogar a placa corta a escrita.
 
 `tests/test_vulnerabilities.py` — PoCs que **passam porque a falha existe**:
 
-- chave e senha no firmware;
+- senha Wi-Fi no `.ino` e chave EVM no relay;
 - `hardwareValido` autodeclarado, sem campo `firmwareHash` no registro do `sensor.vy`;
-- quem extrai a chave da placa assina **como** a placa e polui o histórico daquele endereço.
+- quem extrai a chave do relay assina **como** a carteira do laboratório e polui o histórico daquele endereço.
 
 Quando o firmware/contrato forem endurecidos, esses asserts devem ser invertidos.
 
@@ -243,7 +243,7 @@ Cada linha bruta está em `data/performance_atestacoes.csv` (hash da tx, gas, te
 
 ## 9. Como rodar
 
-1. Python 3, `pip install -r requirements.txt` e também `flask` e `web3` (usados pelo relay; o `requirements.txt` hoje lista só o pytest).
+1. Python 3 e `pip install -r requirements.txt` (pytest, Flask, web3).
 2. `python src/novo_servidor_relay.py`
 3. No navegador: `http://127.0.0.1:5000/atestar`
 4. No `.ino`, IPv4 atual do PC (`ipconfig`) e a mesma Wi-Fi 2.4 GHz do ESP32.
@@ -276,7 +276,7 @@ Os testes de vulnerabilidade existem para isso não ser esquecido na hora de end
 |---|---|
 | `src/sensor.vy` | Contrato de leituras IoT (alvo do desenho novo) |
 | `src/contract_logic.py` | Espelho Python do contrato |
-| `src/firmware.py` | Espelho Python das regras do ESP32 |
+| `src/firmware.py` | Modelo Python da classificação (desenho `sensor.vy`, não o HTTP atual) |
 | `src/novo_servidor_relay.py` | Relay + atestação ESDRA + métricas |
 | `src/publish_sensores_esp/publish_sensores_esp.ino` | Firmware do laboratório |
 | `src/publish_sensores_esp/python_script_vincula_a_RPC.py` | Deploy do bytecode ESDRA |
@@ -286,6 +286,10 @@ Os testes de vulnerabilidade existem para isso não ser esquecido na hora de end
 | `archived/sensor_simulado.py` | Simulador antigo (Ganache + `registrar`) |
 | `patch_nodes_iota.txt` | Patch Web3E (nós IOTA / chain ID) |
 | `docs/search_strings.md` | Strings de busca bibliográfica |
+| `README.md` | Porta de entrada no GitHub; aponta para este arquivo |
 | `RESUMO.md` | Esta documentação |
+| `requirements.txt` | pytest, Flask, web3 |
+| `mycontact.vy` | Cópia local (typo) de `sensor.vy`; ignorada pelo Git |
+| `Web3E-master.zip` | Biblioteca do desenho antigo (ESP falando direto com a EVM) |
 
 Em uma frase: **atestação, aqui, é publicar na testnet uma declaração assinada sobre o dispositivo; o laboratório já faz isso com hash de firmware via relay, e o contrato novo prepara o mesmo gesto para a leitura do sensor.**

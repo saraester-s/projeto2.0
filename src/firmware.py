@@ -1,4 +1,9 @@
-"""Regras do firmware ESP32 em publish_sensores_esp.ino."""
+"""Modelo testável das regras de classificação (NaN off-chain, faixa on-chain).
+
+O sketch de laboratório (`publish_sensores_esp.ino`) só filtra NaN e envia JSON
+ao relay. Este módulo descreve o desenho alinhado a `sensor.vy`: o que iria
+para a cadeia se o ESP (ou o relay) chamasse `registrar_leitura`.
+"""
 
 from __future__ import annotations
 

@@ -1,1 +1,1 @@
-"""Lógica testável extraída de sensor.vy e publish_sensores_esp.ino."""
+"""Espelhos testáveis de sensor.vy e das regras de classificação do firmware."""

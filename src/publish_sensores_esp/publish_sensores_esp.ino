@@ -33,7 +33,7 @@ void listarRedes() {
   int n = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
   Serial.print("Redes visiveis: ");
   Serial.println(n);
-  bool achouSara = false;
+  bool achouSsid = false;
   for (int i = 0; i < n; i++) {
     String nome = WiFi.SSID(i);
     Serial.print("  [");
@@ -44,10 +44,10 @@ void listarRedes() {
     Serial.print(WiFi.RSSI(i));
     Serial.println();
     if (nome == ssid) {
-      achouSara = true;
+      achouSsid = true;
     }
   }
-  if (!achouSara) {
+  if (!achouSsid) {
     Serial.print("SSID \"");
     Serial.print(ssid);
     Serial.println("\" NAO apareceu no scan. Troque ssid/password ou use a rede 2.4 GHz.");

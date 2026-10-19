@@ -37,13 +37,17 @@ def test_domain_categorization(mock_dataset):
     assert pipeline_from_subcategory(umid_fora)["granularity"] == "FIELD_UMID"
 
 
-# 2. Camada firmware vs contrato (assinatura ABI + chain ID)
-def test_mitigation_layer_routing(firmware_source, contract_source):
-    assert CONTRACT_FUNCTION in firmware_source
-    assert "def registrar_leitura(_temp: uint256, _umid: uint256, _status: bool)" in contract_source
-    assert f"Web3 web3({CHAIN_ID})" in firmware_source
+# 2. Camada firmware vs contrato vs relay (HTTP no chip; EVM no PC; sensor.vy no desenho novo)
+def test_mitigation_layer_routing(firmware_source, contract_source, relay_source):
+    assert "HTTPClient.h" in firmware_source
+    assert "/atestar" in firmware_source
     assert "isnan(temp) || isnan(umid)" in firmware_source
     assert "return;" in firmware_source
+    assert "Web3 web3(" not in firmware_source
+    assert "def registrar_leitura(_temp: uint256, _umid: uint256, _status: bool)" in contract_source
+    assert 'encode_abi("registrar"' in relay_source
+    assert "firmwareHash" in relay_source
+    assert str(CHAIN_ID) in relay_source or "1075" in relay_source
 
     payload = build_transaction_payload(22.9, 48.2, True)
     assert payload.target_layer == "EVM_CONTRACT"

@@ -8,7 +8,8 @@ docs_desorganizada
 # Smart contracts não utilizados
 # O contrato ativo do projeto é src/sensor.vy. Os .vy abaixo ficam de fora do Git.
 #
-# mycontract.vy — cópia antiga das regras de leitura IoT (temp/umidade/allowlist)
+# mycontract.vy / mycontact.vy — cópias (typo no nome) das regras de leitura IoT
 mycontract.vy
+mycontact.vy
 # /sensor.vy — contrato ESDRA antigo na raiz (firmwareHash/isValid); o ativo está em src/
 /sensor.vy

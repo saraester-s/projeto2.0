@@ -9,7 +9,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def firmware_source() -> str:
-    return (REPO_ROOT / "publish_sensores_esp.ino").read_text(encoding="utf-8")
+    return (
+        REPO_ROOT / "src" / "publish_sensores_esp" / "publish_sensores_esp.ino"
+    ).read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def relay_source() -> str:
+    return (REPO_ROOT / "src" / "novo_servidor_relay.py").read_text(encoding="utf-8")
 
 
 @pytest.fixture
