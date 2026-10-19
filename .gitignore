@@ -1,5 +1,8 @@
 .env
 
+__pycache__/
+*.pyc
+
 docs_desorganizada
 
 # Smart contracts não utilizados
