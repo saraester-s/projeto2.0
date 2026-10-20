@@ -6,14 +6,11 @@
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
-const char* ssid = "SargonDrase.2.4Ghz";
-const char* password = "Yeezus050494";
+const char* ssid = "Sara";
+const char* senhas[] = {"Sara@2026", "Sara@2026 "};
+const int numSenhas = sizeof(senhas) / sizeof(senhas[0]);
 
-// IPv4 do PC nesta LAN. 127.0.0.1 no ESP e o proprio chip.
-const char* serverUrls[] = {
-  "http://192.168.1.120:5000/atestar"
-};
-const int numServerUrls = sizeof(serverUrls) / sizeof(serverUrls[0]);
+const char* serverUrl = "http://192.168.18.6:5001/leitura";
 
 const char* wifiStatusTexto(int status) {
   switch (status) {
@@ -28,44 +25,14 @@ const char* wifiStatusTexto(int status) {
   }
 }
 
-void listarRedes() {
-  Serial.println("Varrendo Wi-Fi 2.4 GHz...");
-  int n = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
-  Serial.print("Redes visiveis: ");
-  Serial.println(n);
-  bool achouSsid = false;
-  for (int i = 0; i < n; i++) {
-    String nome = WiFi.SSID(i);
-    Serial.print("  [");
-    Serial.print(i);
-    Serial.print("] ");
-    Serial.print(nome);
-    Serial.print(" RSSI=");
-    Serial.print(WiFi.RSSI(i));
-    Serial.println();
-    if (nome == ssid) {
-      achouSsid = true;
-    }
-  }
-  if (!achouSsid) {
-    Serial.print("SSID \"");
-    Serial.print(ssid);
-    Serial.println("\" NAO apareceu no scan. Troque ssid/password ou use a rede 2.4 GHz.");
-  }
-}
-
-bool conectarWifi() {
-  WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);
+bool tentarWifi(const char* senha) {
   WiFi.disconnect(true, true);
-  delay(200);
-  listarRedes();
-
-  Serial.print("[FW-NOVO] A conectar ao Wi-Fi SSID=\"");
+  delay(300);
+  Serial.print("WiFi.begin SSID=\"");
   Serial.print(ssid);
-  Serial.println("\" (so 2.4 GHz)...");
-  WiFi.begin(ssid, password);
+  Serial.print("\" senha_len=");
+  Serial.println(strlen(senha));
+  WiFi.begin(ssid, senha);
 
   int tentativas = 0;
   while (WiFi.status() != WL_CONNECTED && tentativas < 40) {
@@ -74,20 +41,29 @@ bool conectarWifi() {
     tentativas++;
   }
   Serial.println();
+  Serial.print("Status: ");
+  Serial.println(wifiStatusTexto(WiFi.status()));
+  return WiFi.status() == WL_CONNECTED;
+}
 
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.print("Falha Wi-Fi: ");
-    Serial.println(wifiStatusTexto(WiFi.status()));
-    Serial.println("Nao vou reiniciar o chip. Nova tentativa em 8s.");
-    return false;
+bool conectarWifi() {
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+
+  for (int i = 0; i < numSenhas; i++) {
+    if (tentarWifi(senhas[i])) {
+      Serial.println("Wi-Fi conectado.");
+      Serial.print("IP do ESP32: ");
+      Serial.println(WiFi.localIP());
+      Serial.print("Gateway: ");
+      Serial.println(WiFi.gatewayIP());
+      return true;
+    }
   }
 
-  Serial.println("Wi-Fi conectado.");
-  Serial.print("IP do ESP32: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Gateway: ");
-  Serial.println(WiFi.gatewayIP());
-  return true;
+  Serial.println("Falha Wi-Fi. Nova tentativa em 8s.");
+  return false;
 }
 
 bool postarRelay(const char* url, const String& payload) {
@@ -120,7 +96,7 @@ void setup() {
   Serial.begin(115200);
   delay(800);
   Serial.println();
-  Serial.println("=== FW-NOVO publish_sensores_esp (sem ESP.restart) ===");
+  Serial.println("=== FW-SEM-ATESTACAO (so temperatura e umidade) ===");
   dht.begin();
   conectarWifi();
 }
@@ -146,23 +122,15 @@ void loop() {
   Serial.print(umid, 2);
   Serial.println(" %");
 
-  String firmwareHashHex = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
   String payload = "{\"origem\":\"esp32\"";
   payload += ",\"temperature\":";
   payload += String(temp, 2);
   payload += ",\"humidity\":";
   payload += String(umid, 2);
-  payload += ",\"status\":true";
-  payload += ",\"firmware_hash\":\"";
-  payload += firmwareHashHex;
-  payload += "\"}";
+  payload += ",\"status\":true}";
 
-  bool ok = false;
-  for (int i = 0; i < numServerUrls && !ok; i++) {
-    ok = postarRelay(serverUrls[i], payload);
-  }
-  if (!ok) {
-    Serial.println("Nenhum IPv4 do PC aceitou o POST. Confira o IPv4 atual com ipconfig e o relay no ar.");
+  if (!postarRelay(serverUrl, payload)) {
+    Serial.println("Relay nao aceitou o POST. Confira o IPv4 192.168.18.6:5001 e o servidor no ar.");
   }
 
   delay(10000);

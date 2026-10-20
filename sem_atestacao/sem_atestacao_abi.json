@@ -1,0 +1,80 @@
+[
+  {
+    "type": "constructor",
+    "stateMutability": "nonpayable",
+    "inputs": []
+  },
+  {
+    "type": "event",
+    "name": "LeituraRegistrada",
+    "inputs": [
+      { "name": "dispositivo", "type": "address", "indexed": true },
+      { "name": "temperatura", "type": "uint256", "indexed": false },
+      { "name": "umidade", "type": "uint256", "indexed": false },
+      { "name": "hardwareValido", "type": "bool", "indexed": false },
+      { "name": "timestamp", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "autorizar_dispositivo",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "_dispositivo", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "revogar_dispositivo",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "_dispositivo", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "registrar_leitura",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "_temp", "type": "uint256" },
+      { "name": "_umid", "type": "uint256" },
+      { "name": "_status", "type": "bool" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "historico",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "arg0", "type": "address" },
+      { "name": "arg1", "type": "uint256" }
+    ],
+    "outputs": [
+      { "name": "temperatura", "type": "uint256" },
+      { "name": "umidade", "type": "uint256" },
+      { "name": "hardwareValido", "type": "bool" },
+      { "name": "timestamp", "type": "uint256" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "contagem_leituras",
+    "stateMutability": "view",
+    "inputs": [{ "name": "arg0", "type": "address" }],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "dispositivos_autorizados",
+    "stateMutability": "view",
+    "inputs": [{ "name": "arg0", "type": "address" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  }
+]
