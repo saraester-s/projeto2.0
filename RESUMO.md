@@ -71,19 +71,13 @@ Passo a passo:
 
 1. **Leitura.** O ESP32 (`src/publish_sensores_esp/publish_sensores_esp.ino`) lê temperatura e umidade no GPIO 4. Se o DHT11 devolve NaN, **não há atestação**: não há POST, não há transação, espera 2 segundos e tenta de novo.
 
-2. **Pacote.** Com leitura válida, o sketch monta um JSON, por exemplo:
-   - origem `esp32`
-   - `temperature` e `humidity` (números reais do sensor)
-   - `status: true` (hardware declarado válido)
-   - `firmware_hash`: 32 bytes em hex
-
-   Neste protótipo o hash **ainda não é medido na flash**. É uma constante no `.ino`. Serve para exercitar o contrato e o pipeline, não para provar a imagem gravada no chip.
+2. **Pacote.** Com leitura válida, o sketch monta um JSON com `snprintf` (origem, temperatura, umidade, `status`, `firmware_hash` de 64 hex). O hash é o SHA-256 canônico do `.ino` (`src/firmware.py` zera o campo `firmwareHash` na medição). Não é medido na flash do chip.
 
 3. **Transporte.** A cada 10 segundos o ESP32 faz POST para `http://<IPv4-do-PC>:5000/atestar` na mesma rede Wi-Fi 2.4 GHz. `127.0.0.1` no chip é o próprio ESP, não o computador.
 
 4. **Filtro no relay.** `src/novo_servidor_relay.py` só segue se temperatura e umidade forem numéricas e plausíveis (cerca de −20 a 80 °C e 0 a 100 % de umidade). JSON inválido ou sem `firmware_hash` vira erro. Leitura ruim vira `ignored` e **não entra na média**.
 
-5. **Normalização do hash.** O hex vira `bytes32`. Se vier curto, completa com zeros à direita. Se não for hex, cai num SHA-256 da string — para não quebrar o ABI.
+5. **Allowlist.** Só aceita exatamente 64 hex iguais a `FIRMWARE_HASH_ESPERADO`. Hash curto, lixo ou código alterado → HTTP 403, sem transação.
 
 6. **Assinatura.** O PC (não o ESP) monta a chamada `registrar(firmwareHash, status)` no contrato implantado na testnet, com `gasPrice` legado (a IOTA EVM deste ambiente rejeita EIP-1559). Tenta o `chainId` que o RPC reporta e, se vier *chain ID mismatch*, tenta 1075 e 1076.
 
@@ -97,11 +91,11 @@ Contrato usado nesse caminho: `0xDAc95e767da4376456b132F4b78e18C0b8d0C669`, fun�
 
 ### 2.2 Caminho desenhado para o contrato novo (leitura IoT on-chain)
 
-`src/sensor.vy` e os testes em `tests/test_iot_attestation.py` descrevem o próximo passo: gravar **a leitura** (temp, umidade, `hardwareValido`) por endereço da placa, com allowlist e faixa 0–100.
+`src/sensor.vy` descreve o próximo passo: gravar **a leitura** (temp, umidade, `hardwareValido`) por endereço da placa, com allowlist e faixa 0–100.
 
 Aí a “atestação” muda de objeto: em vez do hash do firmware, o fato declarado é **a amostra do sensor**, carimbada com `block.timestamp`. Continua sendo uma declaração assinada, não uma prova física do DHT11.
 
-`src/firmware.py` é o **modelo** dessa classificação para os testes — não é uma cópia linha a linha do `.ino` atual. O sketch de laboratório só decide “NaN → não posta”; faixa 0–100 e `hardwareValido` só existem de fato em `sensor.vy` / `contract_logic.py`. A tabela abaixo é o desenho que os testes cobrem:
+`src/firmware.py` hoje só mede e enrola o hash do `.ino`. O sketch de laboratório só decide “NaN → não posta”; faixa 0–100 e `hardwareValido` só existem de fato em `sensor.vy` / `contract_logic.py`. A tabela abaixo é o desenho do contrato novo:
 
 | Situação | Camada | Subcategoria | O que acontece |
 |---|---|---|---|
@@ -181,12 +175,11 @@ Arquivo: `src/publish_sensores_esp/publish_sensores_esp.ino`.
 O que ele faz hoje:
 
 - biblioteca DHT + HTTPClient (não Web3E neste sketch);
-- scan de redes 2.4 GHz para diagnosticar SSID;
-- conexão STA, sem `ESP.restart()` em loop (reinício cego impedia ver o erro);
-- POST JSON para o IPv4 do PC na LAN;
+- Wi-Fi STA direto no SSID de laboratório (`Sara`), sem scan;
+- JSON com `snprintf` e POST em host/porta/caminho explícitos (`192.168.18.6:5000/atestar`);
 - intervalo de 10 s após leitura válida.
 
-O modelo testável em `src/firmware.py` (`classify_reading`, `build_transaction_payload`) descreve o envio futuro para `registrar_leitura` na chain ID **1076**. O sketch que está na placa **não** chama Web3E nem essa função.
+O modelo testável em `src/firmware.py` mede o SHA-256 do `.ino` e compara com o hash enrolado. O sketch que está na placa **não** chama Web3E.
 
 **Atenção operacional:** SSID, senha e URL do relay são locais. Trocar de rede exige atualizar os três. Não commitar senha nova em texto claro se for possível evitar; o sketch atual ainda traz credenciais de laboratório.
 
@@ -210,21 +203,11 @@ A chave EVM e o `WALLET_ADDRESS` (`0x316e45d3…874Ef6`) usados para assinar est
 
 `pytest` (`pytest.ini` aponta `tests/`, `pythonpath = .`). Dependências em `requirements.txt`: pytest, Flask e web3.
 
-`tests/test_iot_attestation.py` — avaliação do pipeline:
+Só há o teste de hash de firmware:
 
-1. Categorização com subcategoria (etapas 3 e 4 não dependem só do rótulo on-chain).
-2. Roteamento de camada (HTTP + NaN no `.ino`; `registrar` no relay; `registrar_leitura` no `sensor.vy`; payload EVM modelado em `firmware.py`).
-3. Granularidade: duas placas, históricos separados.
-4. Timestamp imutável por registro (análogo a política de TTL: o passado não expira nem se reescreve).
-5. Allowlist / dano colateral: invasor e faixa inválida não poluem o histórico; revogar a placa corta a escrita.
-
-`tests/test_vulnerabilities.py` — PoCs que **passam porque a falha existe**:
-
-- senha Wi-Fi no `.ino` e chave EVM no relay;
-- `hardwareValido` autodeclarado, sem campo `firmwareHash` no registro do `sensor.vy`;
-- quem extrai a chave do relay assina **como** a carteira do laboratório e polui o histórico daquele endereço.
-
-Quando o firmware/contrato forem endurecidos, esses asserts devem ser invertidos.
+- com atestação: `tests/test_firmware_hash.py` — código alterado muda o hash e a atestação é recusada;
+- sem atestação: `sem_atestacao/tests/sem_atestacao_test_firmware_hash.py` — o hash muda e a leitura mesmo assim grava;
+- manual: `python src/teste_manual_hash.py` (opcional `--hash` e `--enviar`).
 
 ---
 
@@ -256,17 +239,17 @@ Mudança de rede: atualizar SSID/senha no firmware e a URL `http://NOVO_IP:5000/
 
 ## 10. Limites e o que ainda não está atestado
 
-Funciona hoje: sensor → JSON → relay → testnet → CSV/página; regras do `sensor.vy` cobertas por teste; números de latência e custo com hardware real.
+Funciona hoje: sensor → JSON com hash enrolado → relay (403 se o código mudou) → testnet → CSV/página; números de latência e custo com hardware real.
 
 Ainda **não** é atestação forte:
 
-- o hash de firmware é constante, não medido;
+- o hash é do **arquivo-fonte** `.ino`, não da imagem na flash;
 - quem assina na cadeia é o PC, não um elemento seguro no ESP32;
 - o contrato novo acredita no booleano que o remetente manda;
 - temperatura/umidade do laboratório não estão no storage do contrato ESDRA que o relay chama;
 - `sensor.vy` ainda não é o destino das transações do relay.
 
-Os testes de vulnerabilidade existem para isso não ser esquecido na hora de endurecer o sistema.
+O contraste experimental está no clone `sem_atestacao/`: a leitura grava mesmo com o sketch alterado.
 
 ---
 
@@ -276,12 +259,13 @@ Os testes de vulnerabilidade existem para isso não ser esquecido na hora de end
 |---|---|
 | `src/sensor.vy` | Contrato de leituras IoT (alvo do desenho novo) |
 | `src/contract_logic.py` | Espelho Python do contrato |
-| `src/firmware.py` | Modelo Python da classificação (desenho `sensor.vy`, não o HTTP atual) |
+| `src/firmware.py` | Medição SHA-256 e hash enrolado |
+| `src/teste_manual_hash.py` | Teste manual do hash (local ou POST no relay) |
 | `src/novo_servidor_relay.py` | Relay + atestação ESDRA + métricas |
 | `src/publish_sensores_esp/publish_sensores_esp.ino` | Firmware do laboratório |
 | `src/publish_sensores_esp/python_script_vincula_a_RPC.py` | Deploy do bytecode ESDRA |
 | `abi.json` | ABI do `sensor.vy` |
-| `tests/` | Suíte de atestação e PoCs |
+| `tests/` | Teste: código alterado → hash recusado |
 | `data/` | CSVs de desempenho |
 | `archived/sensor_simulado.py` | Simulador antigo (Ganache + `registrar`) |
 | `patch_nodes_iota.txt` | Patch Web3E (nós IOTA / chain ID) |

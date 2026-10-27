@@ -2,15 +2,21 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 import csv
-import hashlib
 import math
 import re
 import socket
+import sys
 import threading
 import time
 
 from flask import Flask, request, jsonify, render_template_string
 from web3 import Web3
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from src.firmware import FIRMWARE_HASH_ESPERADO, hash_esta_enrolado
 
 app = Flask(__name__)
 
@@ -188,9 +194,7 @@ def _normalizar_hash(firmware_hash_hex):
     hex_only = re.sub(r"[^0-9a-fA-F]", "", valor)
     if len(hex_only) == 64:
         return bytes.fromhex(hex_only)
-    if len(hex_only) > 0 and len(hex_only) <= 64 and len(hex_only) % 2 == 0:
-        return bytes.fromhex(hex_only.ljust(64, "0"))
-    return hashlib.sha256(str(firmware_hash_hex).encode("utf-8")).digest()
+    return None
 
 
 def _registrar_evento(**kwargs):
@@ -480,6 +484,23 @@ def atestar():
             return jsonify({"status": "error", "message": "Campo firmware_hash ausente"}), 400
 
         firmware_hash_bytes = _normalizar_hash(firmware_hash_hex)
+        if firmware_hash_bytes is None or not hash_esta_enrolado(firmware_hash_bytes):
+            print(
+                f"[403] firmware_hash len={len(str(firmware_hash_hex))} valor={firmware_hash_hex!r}",
+                flush=True,
+            )
+            _registrar_evento(
+                temperature=temperatura,
+                humidity=umidade,
+                hw_status=hw_status,
+                firmware_hash=firmware_hash_hex,
+                message="Hash de firmware nao enrolado (codigo alterado)",
+            )
+            return jsonify({
+                "status": "error",
+                "message": "Hash de firmware nao enrolado. Codigo alterado nao e aceito.",
+                "esperado": "0x" + FIRMWARE_HASH_ESPERADO.hex(),
+            }), 403
         inicio = time.perf_counter()
         nonce = w3.eth.get_transaction_count(WALLET_ADDRESS)
         data = contract.encode_abi("registrar", args=[firmware_hash_bytes, hw_status])

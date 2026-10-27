@@ -21,66 +21,6 @@ def firmware_source() -> str:
 
 
 @pytest.fixture
-def relay_source() -> str:
-    return (SRC_DIR / "sem_atestacao_novo_servidor_relay.py").read_text(encoding="utf-8")
-
-
-@pytest.fixture
-def contract_source() -> str:
-    return (SRC_DIR / "sem_atestacao_sensor.vy").read_text(encoding="utf-8")
-
-
-@pytest.fixture
-def mock_dataset():
-    return [
-        {
-            "id": "leitura_ok",
-            "temp": 25.4,
-            "umid": 60.1,
-            "hardware_ok": True,
-            "expected_category": "ON_CHAIN",
-            "expected_sub": "DHT11_OK",
-            "expected_granularity": "RECORD_FULL",
-            "expected_ttl": "KEEP_TIMESTAMP",
-            "should_send": True,
-        },
-        {
-            "id": "sensor_nan",
-            "temp": float("nan"),
-            "umid": 55.0,
-            "hardware_ok": True,
-            "expected_category": "OFF_CHAIN",
-            "expected_sub": "DHT11_NAN",
-            "expected_granularity": "SKIP_TX",
-            "expected_ttl": "RETRY_2S",
-            "should_send": False,
-        },
-        {
-            "id": "temp_fora",
-            "temp": 101.0,
-            "umid": 40.0,
-            "hardware_ok": True,
-            "expected_category": "ON_CHAIN",
-            "expected_sub": "FAIXA_TEMPERATURA",
-            "expected_granularity": "FIELD_TEMP",
-            "expected_ttl": "NO_WRITE_KEEP_AUTH",
-            "should_send": True,
-        },
-        {
-            "id": "umid_fora",
-            "temp": 20.0,
-            "umid": 150.0,
-            "hardware_ok": True,
-            "expected_category": "ON_CHAIN",
-            "expected_sub": "FAIXA_UMIDADE",
-            "expected_granularity": "FIELD_UMID",
-            "expected_ttl": "NO_WRITE_KEEP_AUTH",
-            "should_send": True,
-        },
-    ]
-
-
-@pytest.fixture
 def allowlist_dispositivos():
     return {
         "owner": "0xOWNER0000000000000000000000000000000001",

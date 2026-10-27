@@ -10,7 +10,13 @@ const char* ssid = "Sara";
 const char* senhas[] = {"Sara@2026", "Sara@2026 "};
 const int numSenhas = sizeof(senhas) / sizeof(senhas[0]);
 
-const char* serverUrl = "http://192.168.18.6:5001/leitura";
+const char* relayHost = "192.168.18.6";
+const uint16_t relayPorta = 5000;
+const char* relayCaminho = "/atestar";
+// Hash canônico do .ino (firmware.py zera este campo na medição). Para o teste:
+// altere o código, rode python src/teste_manual_hash.py, cole o hash novo aqui
+// e NÃO atualize FIRMWARE_HASH_ESPERADO_HEX — o relay deve recusar.
+const char* firmwareHash = "8422ebe782c2f51ab17c330621d0b4c2c29db4175a82929fec0bab04d2ba28b6";
 
 const char* wifiStatusTexto(int status) {
   switch (status) {
@@ -66,12 +72,16 @@ bool conectarWifi() {
   return false;
 }
 
-bool postarRelay(const char* url, const String& payload) {
+bool postarRelay(const char* payload) {
+  WiFiClient cliente;
   HTTPClient http;
-  Serial.print("POST ");
-  Serial.println(url);
+  Serial.print("POST http://");
+  Serial.print(relayHost);
+  Serial.print(":");
+  Serial.print(relayPorta);
+  Serial.println(relayCaminho);
 
-  if (!http.begin(url)) {
+  if (!http.begin(cliente, relayHost, relayPorta, relayCaminho)) {
     Serial.println("http.begin falhou");
     return false;
   }
@@ -80,6 +90,7 @@ bool postarRelay(const char* url, const String& payload) {
   http.setTimeout(60000);
   int codigo = http.POST(payload);
   String corpo = http.getString();
+  String erro = (codigo <= 0) ? http.errorToString(codigo) : "";
   http.end();
 
   Serial.print("HTTP ");
@@ -87,7 +98,7 @@ bool postarRelay(const char* url, const String& payload) {
   if (codigo > 0) {
     Serial.println(corpo);
   } else {
-    Serial.println(http.errorToString(codigo));
+    Serial.println(erro);
   }
   return codigo == 200;
 }
@@ -96,7 +107,9 @@ void setup() {
   Serial.begin(115200);
   delay(800);
   Serial.println();
-  Serial.println("=== FW-SEM-ATESTACAO (so temperatura e umidade) ===");
+  Serial.println("=== FW-ATESTACAO (hash de firmware no POST /atestar) ===");
+  Serial.print("firmwareHash=");
+  Serial.println(firmwareHash);
   dht.begin();
   conectarWifi();
 }
@@ -122,15 +135,22 @@ void loop() {
   Serial.print(umid, 2);
   Serial.println(" %");
 
-  String payload = "{\"origem\":\"esp32\"";
-  payload += ",\"temperature\":";
-  payload += String(temp, 2);
-  payload += ",\"humidity\":";
-  payload += String(umid, 2);
-  payload += ",\"status\":true}";
+  char payload[320];
+  snprintf(
+    payload,
+    sizeof(payload),
+    "{\"origem\":\"esp32\",\"temperature\":%.2f,\"humidity\":%.2f,\"status\":true,\"firmware_hash\":\"%s\"}",
+    temp,
+    umid,
+    firmwareHash
+  );
+  Serial.print("JSON len=");
+  Serial.print(strlen(payload));
+  Serial.print(" hash_len=");
+  Serial.println(strlen(firmwareHash));
 
-  if (!postarRelay(serverUrl, payload)) {
-    Serial.println("Relay nao aceitou o POST. Confira o IPv4 192.168.18.6:5001 e o servidor no ar.");
+  if (!postarRelay(payload)) {
+    Serial.println("Relay nao aceitou o POST. Confira o IPv4 192.168.18.6:5000/atestar e o servidor no ar.");
   }
 
   delay(10000);

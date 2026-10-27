@@ -1,162 +1,49 @@
-"""Modelo testável das regras de classificação (NaN off-chain, faixa on-chain).
-
-O sketch de laboratório (`publish_sensores_esp.ino`) só filtra NaN e envia JSON
-ao relay. Este módulo descreve o desenho alinhado a `sensor.vy`: o que iria
-para a cadeia se o ESP (ou o relay) chamasse `registrar_leitura`.
-"""
+"""Medição e allowlist do hash de firmware (clone com atestação)."""
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
+import hashlib
+import re
+from pathlib import Path
 
-CHAIN_ID = 1076
-CONTRACT_FUNCTION = "registrar_leitura(uint256,uint256,bool)"
-GAS_LIMIT = 3_000_000
-VALUE_WEI = 0
-DHT_PIN = 4
-SEND_INTERVAL_MS = 10_000
-TEMP_MAX = 100
-UMID_MAX = 100
+FIRMWARE_PATH = Path(__file__).resolve().parent / "publish_sensores_esp" / "publish_sensores_esp.ino"
+_HASH_CONST_RE = re.compile(rb'const char\* firmwareHash = "[0-9a-fA-F]{64}";')
+_HASH_CANON = b'const char* firmwareHash = "' + b"0" * 64 + b'";'
 
 
-@dataclass(frozen=True)
-class LeituraClassificada:
-    """category = camada de ação; subcategory = granularidade e duração da regra."""
-
-    category: str
-    subcategory: str
-    should_send: bool
-    temp_uint: int | None
-    umid_uint: int | None
-    hardware_valido: bool
-    granularity: str
-    ttl_policy: str
+def _canonico(dados: bytes) -> bytes:
+    """Zera o campo firmwareHash para o hash do arquivo não depender do próprio valor."""
+    if _HASH_CONST_RE.search(dados):
+        return _HASH_CONST_RE.sub(_HASH_CANON, dados, count=1)
+    return dados
 
 
-@dataclass(frozen=True)
-class PayloadTransacao:
-    target_layer: str
-    function_signature: str
-    rule_text: str
-    chain_id: int
-    temp: int
-    umid: int
-    status: bool
-    gas_limit: int
-    value_wei: int
+def medir_firmware(source: str | bytes) -> bytes:
+    dados = source.encode("utf-8") if isinstance(source, str) else source
+    return hashlib.sha256(_canonico(dados)).digest()
 
 
-def _is_nan(value: float | None) -> bool:
-    return value is None or (isinstance(value, float) and math.isnan(value))
+def medir_arquivo_firmware(path: Path | None = None) -> bytes:
+    return medir_firmware((path or FIRMWARE_PATH).read_bytes())
 
 
-def classify_reading(
-    temp: float | None,
-    umid: float | None,
-    hardware_ok: bool = True,
-) -> LeituraClassificada:
-    """Classifica a leitura do ESP32.
-
-    category (camada): OFF_CHAIN age no firmware; ON_CHAIN age no sensor.vy.
-    subcategory (metadado): diz *o que* bloquear e por quanto tempo — sem ela o
-    pipeline das etapas 3 e 4 teria de adivinhar, como e2LD vs FQDN no DomainChroma.
-    """
-    if _is_nan(temp) or _is_nan(umid):
-        return LeituraClassificada(
-            category="OFF_CHAIN",
-            subcategory="DHT11_NAN",
-            should_send=False,
-            temp_uint=None,
-            umid_uint=None,
-            hardware_valido=False,
-            granularity="SKIP_TX",
-            ttl_policy="RETRY_2S",
-        )
-
-    temp_uint = int(temp) & 0xFFFFFFFF
-    umid_uint = int(umid) & 0xFFFFFFFF
-
-    if temp_uint > TEMP_MAX:
-        return LeituraClassificada(
-            category="ON_CHAIN",
-            subcategory="FAIXA_TEMPERATURA",
-            should_send=True,
-            temp_uint=temp_uint,
-            umid_uint=umid_uint,
-            hardware_valido=hardware_ok,
-            granularity="FIELD_TEMP",
-            ttl_policy="NO_WRITE_KEEP_AUTH",
-        )
-    if umid_uint > UMID_MAX:
-        return LeituraClassificada(
-            category="ON_CHAIN",
-            subcategory="FAIXA_UMIDADE",
-            should_send=True,
-            temp_uint=temp_uint,
-            umid_uint=umid_uint,
-            hardware_valido=hardware_ok,
-            granularity="FIELD_UMID",
-            ttl_policy="NO_WRITE_KEEP_AUTH",
-        )
-    if not hardware_ok:
-        return LeituraClassificada(
-            category="ON_CHAIN",
-            subcategory="HARDWARE_INVALID",
-            should_send=True,
-            temp_uint=temp_uint,
-            umid_uint=umid_uint,
-            hardware_valido=False,
-            granularity="RECORD_STATUS",
-            ttl_policy="KEEP_TIMESTAMP",
-        )
-    return LeituraClassificada(
-        category="ON_CHAIN",
-        subcategory="DHT11_OK",
-        should_send=True,
-        temp_uint=temp_uint,
-        umid_uint=umid_uint,
-        hardware_valido=True,
-        granularity="RECORD_FULL",
-        ttl_policy="KEEP_TIMESTAMP",
-    )
+FIRMWARE_HASH_ESPERADO_HEX = (
+    "8422ebe782c2f51ab17c330621d0b4c2c29db4175a82929fec0bab04d2ba28b6"
+)
+FIRMWARE_HASH_ESPERADO = bytes.fromhex(FIRMWARE_HASH_ESPERADO_HEX)
 
 
-def categorize_reading(
-    temp: float | None,
-    umid: float | None,
-    hardware_ok: bool = True,
-) -> LeituraClassificada:
-    """Alias estável para o teste 1 (equivalente a categorize_domain)."""
-    return classify_reading(temp, umid, hardware_ok)
+def hash_esta_enrolado(digest: bytes, esperado: bytes | None = None) -> bool:
+    alvo = FIRMWARE_HASH_ESPERADO if esperado is None else esperado
+    return digest == alvo
 
 
-def pipeline_from_subcategory(res: LeituraClassificada) -> dict[str, str]:
-    """Etapas 3 e 4: granularidade e TTL saem da subcategoria, não do rótulo principal."""
-    if not res.subcategory:
-        raise ValueError("Classificador incompleto: falta subcategory")
-    return {
-        "layer": res.category,
-        "granularity": res.granularity,
-        "ttl_policy": res.ttl_policy,
-    }
+def normalizar_firmware_hash(valor: str) -> bytes:
+    texto = valor.strip()
+    if texto.startswith(("0x", "0X")):
+        texto = texto[2:]
+    return bytes.fromhex(texto)
 
 
-def build_transaction_payload(temp: float, umid: float, hardware_ok: bool) -> PayloadTransacao:
-    """Monta o payload que o ESP32 envia em SetupContractData/SendTransaction."""
-    leitura = classify_reading(temp, umid, hardware_ok)
-    if not leitura.should_send:
-        raise ValueError("Firmware não envia transação quando o DHT11 retorna NaN")
-
-    signature = CONTRACT_FUNCTION
-    return PayloadTransacao(
-        target_layer="EVM_CONTRACT",
-        function_signature=signature,
-        rule_text=f"{signature}:{leitura.temp_uint}:{leitura.umid_uint}:{leitura.hardware_valido}",
-        chain_id=CHAIN_ID,
-        temp=leitura.temp_uint,
-        umid=leitura.umid_uint,
-        status=leitura.hardware_valido,
-        gas_limit=GAS_LIMIT,
-        value_wei=VALUE_WEI,
-    )
+def veredito_hash(digest: bytes, esperado: bytes | None = None) -> str:
+    return "ACEITO" if hash_esta_enrolado(digest, esperado) else "RECUSADO"

@@ -1,1 +1,1 @@
-"""Espelhos testáveis de sensor.vy e das regras de classificação do firmware."""
+"""Clone com atestação de firmware (hash enrolado)."""
