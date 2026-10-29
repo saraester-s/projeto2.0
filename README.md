@@ -2,7 +2,7 @@
 
 ESP32 + DHT11 enviam temperatura, umidade e um **hash SHA-256 do sketch**. O relay Flask no PC só publica a transação se esse hash for o **enrolado**. Caso contrário responde **403** e não chama o contrato.
 
-Documentação longa: **[RESUMO.md](RESUMO.md)**. Clone sem hash: **[sem_atestacao/sem_atestacao_README.md](sem_atestacao/sem_atestacao_README.md)**.
+Documentação longa: **[RESUMO.md](RESUMO.md)**. Os 4 casos: **[testes/README.md](testes/README.md)**. Clone sem hash: **[sem_atestacao/sem_atestacao_README.md](sem_atestacao/sem_atestacao_README.md)**.
 
 ## Estado do laboratório (outubro 2026)
 
@@ -74,5 +74,5 @@ Mesmo hardware, **sem** `firmware_hash`. Porta **5001**, POST `/leitura`, contra
 | `src/novo_servidor_relay.py` | Flask :5000, 403 se hash errado, tx + CSV |
 | `src/sensor.vy` | Contrato de leituras (desenho; o relay de lab ainda chama o ESDRA) |
 | `tests/test_firmware_hash.py` | Código alterado → hash recusado |
-| `data/performance_*.csv` | Tempos e custo das atestações reais |
+| `data/caso-01-*.csv` … `caso-04-*.csv` | Métricas de cada um dos 4 casos |
 | `sem_atestacao/` | Pipeline paralelo sem allowlist de firmware |

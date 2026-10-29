@@ -193,7 +193,7 @@ Arquivo: `src/novo_servidor_relay.py`.
 - Tenta RPCs `json-rpc.evm.testnet.iota.cafe` e `json-rpc.evm.testnet.iotaledger.net`.
 - GET `/` devolve JSON de status; GET `/atestar` é a página que recarrega a cada 5 s; POST `/atestar` é o hardware.
 - Lote de desempenho: 30 envios **reais** (DHT válido + tx confirmada).
-- Média acumulada reescrita em `data/performance_media_total.csv`.
+- Média acumulada em `data/caso-com-seguranca-media-total.csv`. Os quatro casos: `data/caso-01-` … `data/caso-04-`.
 
 A chave EVM e o `WALLET_ADDRESS` (`0x316e45d3…874Ef6`) usados para assinar estão no código do relay, não no `.ino`. Para qualquer uso fora do laboratório, isso deveria ir para variável de ambiente (o `.env` já está no `.gitignore`).
 
@@ -217,10 +217,13 @@ Coletado em 17 de outubro de 2026, só com DHT válido:
 
 | Conjunto | Amostras | Tempo médio até envio | Tempo médio até confirmação | Custo médio | Custo total |
 |---|---|---|---|---|---|
-| Lote (`performance_resumo.csv`) | 30 | ~1616 ms | ~4057 ms | ~0,000851 IOTA | ~0,0255 IOTA |
-| Série 45 (`performance_media_45.csv` / `performance_media_total.csv`) | 45 | ~1586 ms | ~4030 ms | ~0,000851 IOTA | ~0,0383 IOTA |
+| Lote caso 1 (`caso-01-com-seguranca-sem-adulteracao-media.csv`) | 30 | 1638 ms | 4674 ms | 0,000221 IOTA | 0,0066327 IOTA |
+| Série 45 caso 1 (`caso-01-com-seguranca-sem-adulteracao-media-45.csv`) | 45 | ~1586 ms | ~4030 ms | ~0,000851 IOTA | ~0,0383 IOTA |
+| Lote caso 3 (`caso-03-sem-seguranca-sem-adulteracao-media.csv`) | 30 | 1665 ms | 4384 ms | 0,000217 IOTA | 0,0065175 IOTA |
+| Série 45 caso 3 (`caso-03-sem-seguranca-sem-adulteracao-media-45.csv`) | 45 | ~1378 ms | ~3645 ms | ~0,000216 IOTA | ~0,0097 IOTA |
+| Lote caso 4 (`caso-04-sem-seguranca-adulteracao-media.csv`) | 30 | 1482 ms | 4155 ms | 0,000217 IOTA | 0,0065175 IOTA |
 
-Cada linha bruta está em `data/performance_atestacoes.csv` (hash da tx, gas, temp, umidade).
+Bruto: `data/caso-01-com-seguranca-sem-adulteracao.csv`, `data/caso-02-com-seguranca-adulteracao.csv`, `data/caso-03-sem-seguranca-sem-adulteracao.csv` e `data/caso-04-sem-seguranca-adulteracao.csv`.
 
 ---
 
@@ -266,7 +269,7 @@ O contraste experimental está no clone `sem_atestacao/`: a leitura grava mesmo 
 | `src/publish_sensores_esp/python_script_vincula_a_RPC.py` | Deploy do bytecode ESDRA |
 | `abi.json` | ABI do `sensor.vy` |
 | `tests/` | Teste: código alterado → hash recusado |
-| `data/` | CSVs de desempenho |
+| `data/caso-01-` … `caso-04-` | CSVs dos 4 casos |
 | `archived/sensor_simulado.py` | Simulador antigo (Ganache + `registrar`) |
 | `patch_nodes_iota.txt` | Patch Web3E (nós IOTA / chain ID) |
 | `docs/search_strings.md` | Strings de busca bibliográfica |

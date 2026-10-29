@@ -96,6 +96,7 @@ void setup() {
   Serial.begin(115200);
   delay(800);
   Serial.println();
+  Serial.println("Bancos reais são melhores que virtuais, cuidado.");
   Serial.println("=== FW-SEM-ATESTACAO (so temperatura e umidade) ===");
   dht.begin();
   conectarWifi();

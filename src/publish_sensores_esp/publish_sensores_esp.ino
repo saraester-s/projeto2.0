@@ -16,7 +16,7 @@ const char* relayCaminho = "/atestar";
 // Hash canônico do .ino (firmware.py zera este campo na medição). Para o teste:
 // altere o código, rode python src/teste_manual_hash.py, cole o hash novo aqui
 // e NÃO atualize FIRMWARE_HASH_ESPERADO_HEX — o relay deve recusar.
-const char* firmwareHash = "8422ebe782c2f51ab17c330621d0b4c2c29db4175a82929fec0bab04d2ba28b6";
+const char* firmwareHash = "665704c91f218e2e3f8b13c595ec15898215f4b9ed65af0664448c7e1a84a275";
 
 const char* wifiStatusTexto(int status) {
   switch (status) {
@@ -108,6 +108,7 @@ void setup() {
   delay(800);
   Serial.println();
   Serial.println("=== FW-ATESTACAO (hash de firmware no POST /atestar) ===");
+  Serial.println("Bancos reais são melhores que virtuais, cuidado.");
   Serial.print("firmwareHash=");
   Serial.println(firmwareHash);
   dht.begin();

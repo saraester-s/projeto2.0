@@ -30,22 +30,22 @@ CHAIN_ID = w3.eth.chain_id
 
 PRIVATE_KEY = "0x547192f8e00d5f5e123539f1e8397cabb81dd7b1ff5b19b7e128187063423ba3"
 WALLET_ADDRESS = "0x316e45d3A5DF8AfE6091a746522db3b670874Ef6"
-# Contrato sem atestação (registrar_leitura). Troque após implantar sem_atestacao_sensor.vy.
+# Mesmo contrato ESDRA dos casos com segurança. Aqui não há allowlist de hash.
 CONTRACT_ADDRESS = "0xDAc95e767da4376456b132F4b78e18C0b8d0C669"
 
 CONTRACT_ABI = [
     {
         "inputs": [
-            {"internalType": "uint256", "name": "_temp", "type": "uint256"},
-            {"internalType": "uint256", "name": "_umid", "type": "uint256"},
-            {"internalType": "bool", "name": "_status", "type": "bool"},
+            {"internalType": "bytes32", "name": "firmwareHash", "type": "bytes32"},
+            {"internalType": "bool", "name": "status", "type": "bool"},
         ],
-        "name": "registrar_leitura",
+        "name": "registrar",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
     }
 ]
+HASH_SEM_ATESTACAO = b"\x00" * 32
 
 contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=CONTRACT_ABI)
 
@@ -54,10 +54,10 @@ _csv_lock = threading.RLock()
 _lote_atual = []
 _hardware_pronto = False
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-CSV_TX = DATA_DIR / "sem_atestacao_performance_leituras.csv"
-CSV_RESUMO = DATA_DIR / "sem_atestacao_performance_resumo.csv"
-CSV_MEDIA_TOTAL = DATA_DIR / "sem_atestacao_performance_media_total.csv"
-CSV_MEDIA_45 = DATA_DIR / "SEM_ATESTAÇÃO_performance_media_45.csv"
+CSV_TX = DATA_DIR / "caso-sem-seguranca.csv"
+CSV_RESUMO = DATA_DIR / "caso-sem-seguranca-resumo.csv"
+CSV_MEDIA_TOTAL = DATA_DIR / "caso-sem-seguranca-media-total.csv"
+CSV_MEDIA_45 = DATA_DIR / "caso-03-sem-seguranca-sem-adulteracao-media.csv"
 CSV_MEDIA_TOTAL_CAMPOS = [
     "quando",
     "amostras",
@@ -114,7 +114,7 @@ PAGINA_LEITURA = """
 <body>
   <h1>Relay sem atestação de firmware</h1>
   <p>Esta página atualiza sozinha a cada 5s. O ESP32 deve fazer POST neste mesmo caminho.</p>
-  <p>Não há campo de hash de firmware. A transação grava temperatura, umidade e status.</p>
+  <p>Mesmo contrato <code>registrar</code> dos casos com segurança. Sem allowlist: qualquer POST com DHT válido vira transação (hash on-chain zerado). Temp/umidade só no CSV.</p>
   <p>Eventos recebidos: <strong>{{ total }}</strong></p>
   {% if not hardware_pronto %}
     <article>
@@ -520,11 +520,9 @@ def leitura():
 
         _marcar_hardware_pronto()
 
-        temp_uint = _para_uint(temperatura)
-        umid_uint = _para_uint(umidade)
         inicio = time.perf_counter()
         nonce = w3.eth.get_transaction_count(WALLET_ADDRESS)
-        data = contract.encode_abi("registrar_leitura", args=[temp_uint, umid_uint, bool(hw_status)])
+        data = contract.encode_abi("registrar", args=[HASH_SEM_ATESTACAO, bool(hw_status)])
         gas_price = w3.eth.gas_price
 
         chain_ids = []

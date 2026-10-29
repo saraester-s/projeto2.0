@@ -60,9 +60,9 @@ _csv_lock = threading.RLock()
 _lote_atual = []
 _hardware_pronto = False
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-CSV_TX = DATA_DIR / "performance_atestacoes.csv"
-CSV_RESUMO = DATA_DIR / "performance_resumo.csv"
-CSV_MEDIA_TOTAL = DATA_DIR / "performance_media_total.csv"
+CSV_TX = DATA_DIR / "caso-com-seguranca.csv"
+CSV_RESUMO = DATA_DIR / "caso-com-seguranca-resumo.csv"
+CSV_MEDIA_TOTAL = DATA_DIR / "caso-com-seguranca-media-total.csv"
 CSV_MEDIA_TOTAL_CAMPOS = [
     "quando",
     "amostras",
@@ -489,6 +489,20 @@ def atestar():
                 f"[403] firmware_hash len={len(str(firmware_hash_hex))} valor={firmware_hash_hex!r}",
                 flush=True,
             )
+            _append_csv({
+                "quando": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                "status": "rejected",
+                "tx_hash": "",
+                "tempo_envio_ms": "",
+                "tempo_confirmacao_ms": "",
+                "gas_price_wei": "",
+                "gas_usado": "",
+                "custo_wei": "",
+                "custo_iota": "",
+                "temperature": temperatura,
+                "humidity": umidade,
+                "mensagem": f"Hash de firmware nao enrolado: {firmware_hash_hex}",
+            })
             _registrar_evento(
                 temperature=temperatura,
                 humidity=umidade,
